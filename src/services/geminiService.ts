@@ -12,6 +12,7 @@ export async function analyzeIncident(input: string, location: { lat: number, ln
     
     Extract the type of incident, severity (low, medium, high, critical), a concise description, and a list of life-saving actions to be taken immediately.`,
     config: {
+      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -55,6 +56,7 @@ export async function analyzeImageIncident(base64Image: string, mimeType: string
       ]
     },
     config: {
+      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,

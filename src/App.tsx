@@ -5,11 +5,13 @@ import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/fi
 import { auth, db } from './firebase';
 import { useAuth, useIncidents } from './hooks';
 import { analyzeIncident, analyzeImageIncident } from './services/geminiService';
-import { Incident, Location } from './types';
+import { Incident, Location, UserProfile } from './types';
 import { Shield, AlertTriangle, MapPin, Camera, Send, LogIn, LogOut, Activity, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Header } from './components/Header';
+import { IncidentList } from './components/IncidentList';
 
 const API_KEY = 
   process.env.GOOGLE_MAPS_PLATFORM_KEY || 
@@ -433,43 +435,12 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
-        {/* Header */}
-        <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-md z-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
-              <Shield className="w-6 h-6 text-emerald-500" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-white leading-none">Guardian Bridge</h1>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Crisis Response Orchestrator</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {user ? (
-              <div className="flex items-center gap-4">
-                <div className="hidden sm:block text-right">
-                  <p className="text-xs font-medium text-white">{user.displayName}</p>
-                  <p className="text-[10px] text-zinc-500 uppercase">{profile?.role}</p>
-                </div>
-                <button 
-                  onClick={handleSignOut}
-                  className="p-2 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <button 
-                onClick={handleSignIn}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-emerald-900/20"
-              >
-                <LogIn className="w-4 h-4" />
-                Sign In
-              </button>
-            )}
-          </div>
-        </header>
+        <Header 
+          user={user} 
+          profile={profile} 
+          onSignIn={handleSignIn} 
+          onSignOut={handleSignOut} 
+        />
 
         {/* Main Content */}
         <main className="flex-1 relative flex overflow-hidden">
@@ -489,50 +460,15 @@ export default function App() {
                     <span className="text-[10px] text-zinc-500 font-mono">LIVE</span>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                  {incidentsLoading ? (
-                    <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-4">
-                      <Activity className="w-8 h-8 animate-pulse" />
-                      <p className="text-xs">Connecting to response network...</p>
-                    </div>
-                  ) : incidents.length === 0 ? (
-                    <div className="text-center py-12 text-zinc-600">
-                      <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                      <p className="text-sm">No active incidents reported.</p>
-                    </div>
-                  ) : (
-                    incidents.map((incident) => (
-                      <motion.div
-                        key={incident.id}
-                        layoutId={incident.id}
-                        onClick={() => {
-                          setSelectedIncident(incident);
-                          setView('map');
-                        }}
-                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                          selectedIncident?.id === incident.id 
-                            ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-900/10' 
-                            : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            incident.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
-                            incident.severity === 'high' ? 'bg-orange-500/20 text-orange-400' :
-                            'bg-zinc-500/20 text-zinc-400'
-                          }`}>
-                            {incident.severity}
-                          </span>
-                          <span className="text-[10px] text-zinc-500 font-mono">
-                            {new Date(incident.timestamp?.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <h3 className="text-sm font-bold text-white mb-1">{incident.type}</h3>
-                        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">{incident.description}</p>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
+                <IncidentList 
+                  incidents={incidents}
+                  loading={incidentsLoading}
+                  selectedIncidentId={selectedIncident?.id}
+                  onIncidentSelect={(incident) => {
+                    setSelectedIncident(incident);
+                    setView('map');
+                  }}
+                />
               </motion.aside>
             )}
           </AnimatePresence>
@@ -567,9 +503,10 @@ export default function App() {
             <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
               <button 
                 onClick={() => setView(view === 'map' ? 'list' : 'map')}
+                aria-label={view === 'map' ? "Switch to List View" : "Switch to Map View"}
                 className="lg:hidden p-3 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl text-zinc-400 hover:text-white transition-all"
               >
-                <Activity className="w-6 h-6" />
+                <Activity className="w-6 h-6" aria-hidden="true" />
               </button>
               <button 
                 onClick={() => {
@@ -579,9 +516,10 @@ export default function App() {
                     });
                   }
                 }}
+                aria-label="Center Map on My Location"
                 className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl text-zinc-400 hover:text-white transition-all"
               >
-                <MapPin className="w-6 h-6" />
+                <MapPin className="w-6 h-6" aria-hidden="true" />
               </button>
             </div>
 
@@ -601,36 +539,40 @@ export default function App() {
                         <button 
                           type="button"
                           onClick={() => setReporting(false)}
+                          aria-label="Cancel Report"
                           className="text-zinc-500 hover:text-white text-xs"
                         >
                           Cancel
                         </button>
                       </div>
                       <textarea
+                        id="incident-description"
                         value={reportInput}
                         onChange={(e) => setReportInput(e.target.value)}
                         placeholder="Describe the situation... (e.g., 'Car accident at the intersection, smoke visible, two people injured')"
+                        aria-label="Incident Description"
                         className="w-full h-24 bg-zinc-950 border border-zinc-800 rounded-2xl p-4 text-sm focus:outline-none focus:border-emerald-500/50 resize-none placeholder:text-zinc-700"
                         autoFocus
                       />
                       <div className="flex items-center gap-3">
                         <label className="flex-1 flex items-center justify-center gap-2 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-2xl text-sm font-medium cursor-pointer transition-all">
-                          <Camera className="w-4 h-4" />
+                          <Camera className="w-4 h-4" aria-hidden="true" />
                           Upload Photo
-                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" aria-label="Upload Incident Photo" />
                         </label>
                         <button 
                           disabled={analyzing || !reportInput.trim()}
+                          aria-label="Submit Emergency Report"
                           className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white rounded-2xl text-sm font-bold transition-all shadow-lg shadow-emerald-900/20"
                         >
                           {analyzing ? (
                             <>
-                              <Activity className="w-4 h-4 animate-spin" />
+                              <Activity className="w-4 h-4 animate-spin" aria-hidden="true" />
                               Analyzing...
                             </>
                           ) : (
                             <>
-                              <Send className="w-4 h-4" />
+                              <Send className="w-4 h-4" aria-hidden="true" />
                               Submit Report
                             </>
                           )}
@@ -644,6 +586,7 @@ export default function App() {
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    aria-label="Report Emergency"
                     onClick={() => {
                       if (!user) {
                         handleSignIn();
@@ -653,7 +596,7 @@ export default function App() {
                     }}
                     className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-3xl text-lg font-bold shadow-2xl shadow-emerald-900/40 flex items-center justify-center gap-3 border border-emerald-400/20"
                   >
-                    <AlertTriangle className="w-6 h-6" />
+                    <AlertTriangle className="w-6 h-6" aria-hidden="true" />
                     Report Emergency
                   </motion.button>
                 )}
