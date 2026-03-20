@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - email: string (required)
+    //   - role: string (required, enum: ['reporter', 'responder', 'admin'])
+    //
+    // Collection: incidents
+    // Fields:
+    //   - type: string (required)
+    //   - severity: string (required, enum: ['low', 'medium', 'high', 'critical'])
+    //   - description: string (required)
+    //   - location: map {lat: number, lng: number} (required)
+    //   - status: string (required, enum: ['reported', 'dispatched', 'resolved'])
+    //   - timestamp: timestamp (required)
+    //   - reporterId: string (required)
+    //   - actions: list (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'admin') ||
+         (request.auth.token.email == "sbalaramaraju2000@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isResponder() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'responder') || isAdmin());
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 128 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 128 &&
+             data.email is string && data.email.size() < 256 &&
+             data.role in ['reporter', 'responder', 'admin'];
+    }
+
+    function isValidIncident(data) {
+      return data.keys().hasAll(['type', 'severity', 'description', 'location', 'status', 'timestamp', 'reporterId']) &&
+             data.type is string && data.type.size() < 128 &&
+             data.severity in ['low', 'medium', 'high', 'critical'] &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
+             data.location is map && data.location.lat is number && data.location.lng is number &&
+             data.status in ['reported', 'dispatched', 'resolved'] &&
+             data.timestamp is timestamp &&
+             data.reporterId is string && data.reporterId.size() < 128;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'reporter';
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role && isValidUser(request.resource.data)) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /incidents/{incidentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidIncident(request.resource.data) && request.resource.data.reporterId == request.auth.uid;
+      allow update: if isAuthenticated() && (isResponder() || request.resource.data.reporterId == request.auth.uid) && isValidIncident(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

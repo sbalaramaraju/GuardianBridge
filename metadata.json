@@ -1,0 +1,9 @@
+{
+  "name": "Guardian Bridge",
+  "description": "A universal bridge between human intent and crisis response systems, converting unstructured emergency data into life-saving actions.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

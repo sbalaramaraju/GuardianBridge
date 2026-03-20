@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Incident": {
+      "title": "Incident",
+      "description": "A reported emergency or crisis incident.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "description": "Type of incident (e.g., medical, fire, flood, traffic)" },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "description": { "type": "string" },
+        "location": { "type": "object", "properties": { "lat": { "type": "number" }, "lng": { "type": "number" } } },
+        "status": { "type": "string", "enum": ["reported", "dispatched", "resolved"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "reporterId": { "type": "string" },
+        "actions": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["type", "severity", "description", "location", "status", "timestamp", "reporterId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["reporter", "responder", "admin"] }
+      },
+      "required": ["uid", "displayName", "email", "role"]
+    }
+  },
+  "firestore": {
+    "incidents": {
+      "schema": "Incident",
+      "description": "Collection of all reported incidents."
+    },
+    "users": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles."
+    }
+  }
+}
